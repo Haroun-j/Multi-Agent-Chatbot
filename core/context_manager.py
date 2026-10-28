@@ -353,7 +353,7 @@ def summarize_conversation(context: ConversationContext, max_messages: int = 10)
     summary_lines.append("\n=== Historique récent ===")
     
     for msg in history[-5:]:  # 5 derniers messages
-        role_label = "👤 Utilisateur" if msg['role'] == 'user' else "🤖 Assistant"
+        role_label = "Utilisateur" if msg['role'] == 'user' else "Assistant"
         content = msg['content'][:100] + "..." if len(msg['content']) > 100 else msg['content']
         summary_lines.append(f"{role_label}: {content}")
     

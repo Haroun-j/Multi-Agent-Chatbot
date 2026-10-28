@@ -15,7 +15,7 @@ Extrait intelligemment les données des messages sans format rigide:
 
 import re
 from datetime import datetime, timedelta
-import database_mysql as db
+from core import database_mysql as db
 
 class SmartExtractor:
     """Extracteur intelligent de données depuis texte libre"""
