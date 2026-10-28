@@ -1,144 +1,134 @@
-from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS
-from datetime import datetime
+"""
+Flask API and web UI for the multi-agent assistant.
+
+Endpoints
+  GET  /              chat interface (templates/index.html)
+  POST /api/chat      {"message": ..., "conversation_id": ..., "mode": "multi"|"mono"}
+  GET  /api/history   messages exchanged since the server started
+  POST /api/clear     forget the conversation(s)
+  GET  /api/health    server and database status
+"""
+
 import os
 import traceback
+from datetime import datetime
 
-# Import Orchestrator  
-from agents.orchestrator import Orchestrator
+from dotenv import load_dotenv
 
-app = Flask(__name__, static_folder='.')
+load_dotenv()
+
+from flask import Flask, jsonify, request, send_from_directory  # noqa: E402
+from flask_cors import CORS  # noqa: E402
+
+from agents.orchestrator import Orchestrator  # noqa: E402
+from core import database_mysql as db  # noqa: E402
+
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 CORS(app)
 
-# Initialize Orchestrator
 try:
     orchestrator = Orchestrator()
-    print("✅ Orchestrateur Initialisé (Agents avec Outils DB)")
-    print("   → Sales Agent: 5 outils (produits, stock, promos)")
-    print("   → Support Agent: 7 outils (commandes, livraisons, factures)")
-except Exception as e:
-    print(f"❌ Erreur init: {e}")
-    traceback.print_exc()
+    print("Orchestrator ready: sales agent (5 tools), support agent (7 tools)")
+except Exception as exc:  # usually a missing GROQ_API_KEY
+    orchestrator = None
+    print(f"Orchestrator not initialised: {exc}")
+    print("Set GROQ_API_KEY in .env (see .env.example); the UI will load but cannot answer.")
 
-# Global message history
 message_history = []
+
 
 @app.route('/')
 def index():
     return send_from_directory('templates', 'index.html')
 
-@app.route('/<path:path>')
-def serve_static(path):
-    return send_from_directory('.', path)
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    data = request.get_json()
-    user_message = data.get('message', '')
-    mode = data.get('mode', 'multi')  # 'multi' or 'mono'
+    data = request.get_json(silent=True) or {}
+    user_message = (data.get('message') or '').strip()
+    mode = data.get('mode', 'multi')            # 'multi' (orchestrator + agents) or 'mono' (baseline)
     conversation_id = data.get('conversation_id', 'default')
-    
+
     if not user_message:
         return jsonify({'error': 'No message provided'}), 400
-    
-    # Trace log to send back to UI
-    trace_log = []
-    response_text = ""
-    
-    start_time = datetime.now()
-    
+    if orchestrator is None:
+        return jsonify({'error': 'Orchestrator not initialised (missing GROQ_API_KEY?)'}), 503
+
+    start = datetime.now()
+    trace = [f"[{start.strftime('%H:%M:%S')}] message reçu (conversation {conversation_id})"]
+    agent = 'N/A'
+    tools_used = []
+
     try:
-        # Log start
-        trace_log.append(f"[{start_time.strftime('%H:%M:%S')}] New message received")
-        trace_log.append(f"Mode: {'MULTI-AGENT (Advanced)' if mode == 'multi' else 'MONO-AGENT'}")
-        trace_log.append(f"Conversation ID: {conversation_id}")
-        
         if mode == 'mono':
-            # Simple fallback for mono mode
-            trace_log.append("Using fallback mono-agent mode")
-            response_text = "Mono-agent mode...Running in multi-agent mode is recommended for better functionality. Try switching to multi-agent!"
+            trace.append("Mode : baseline, un seul modèle sans routage ni outils")
+            result = orchestrator.baseline(user_message, conversation_id)
         else:
-            # Multi-Agent with Tool Calling
-            trace_log.append("=" * 50)
-            trace_log.append("🤖 Orchestrateur Multi-Agents")
-            
-            # Process with routing
+            trace.append("Mode : multi-agents")
             result = orchestrator.process(user_message, conversation_id)
-            
-            agent_used = result.get('agent', 'N/A')
-            trace_log.append(f"📍 Agent assigné: {agent_used}")
-            trace_log.append(f"🛠️  Outils DB disponibles: {'5 tools' if agent_used == 'SALES' else '7 tools'}")
-            
-            response_text = result.get('response', 'Erreur traitement')
-            
-            trace_log.append("=" * 50)
-            trace_log.append(f"Réponse: {len(response_text)} chars")
-            
-    except Exception as e:
-        trace_log.append(f"ERROR: {str(e)}")
-        trace_log.append("Stack trace:")
-        trace_log.extend(traceback.format_exc().split('\n'))
-        response_text = f"❌ Internal Error: {str(e)}\n\nPlease try again or rephrase your question."
-        print(f"Error in chat processing: {e}")
+            trace.append(f"Agent assigné : {result['agent']}")
+            if result['tools_used']:
+                trace.append("Outils appelés : " + ", ".join(result['tools_used']))
+            else:
+                trace.append("Outils appelés : aucun")
+        response_text = result['response']
+        agent = result['agent']
+        tools_used = result['tools_used']
+    except Exception as exc:
+        trace.append(f"ERREUR : {exc}")
+        response_text = "Désolé, une erreur interne est survenue. Pouvez-vous réessayer ?"
         traceback.print_exc()
 
-    # Store history
-    message_history.append({
-        'role': 'user',
-        'content': user_message,
-        'timestamp': start_time.isoformat()
-    })
-    message_history.append({
-        'role': 'assistant',
-        'content': response_text,
-        'timestamp': datetime.now().isoformat()
-    })
-    
+    elapsed = (datetime.now() - start).total_seconds()
+    trace.append(f"Réponse en {elapsed:.1f}s ({len(response_text)} caractères)")
+
+    message_history.append({'role': 'user', 'content': user_message,
+                            'conversation_id': conversation_id, 'timestamp': start.isoformat()})
+    message_history.append({'role': 'assistant', 'content': response_text, 'agent': agent,
+                            'conversation_id': conversation_id, 'timestamp': datetime.now().isoformat()})
+
     return jsonify({
         'response': response_text,
-        'trace': trace_log,
+        'agent': agent,
+        'tools_used': tools_used,
+        'trace': trace,
         'timestamp': datetime.now().isoformat(),
-        'conversation_id': conversation_id
+        'conversation_id': conversation_id,
     })
+
 
 @app.route('/api/history', methods=['GET'])
 def get_history():
     return jsonify({'messages': message_history})
 
+
 @app.route('/api/clear', methods=['POST'])
 def clear_history():
     global message_history
-    message_history = []
+    data = request.get_json(silent=True) or {}
+    conversation_id = data.get('conversation_id')
+    if orchestrator is not None:
+        orchestrator.reset(conversation_id)
+    if conversation_id:
+        message_history = [m for m in message_history if m.get('conversation_id') != conversation_id]
+    else:
+        message_history = []
     return jsonify({'status': 'cleared'})
+
 
 @app.route('/api/health', methods=['GET'])
 def health():
-    """Health check endpoint"""
-    try:
-        import database_mysql as db
-        db_connected = db.test_connection()
-        return jsonify({
-            'status': 'healthy',
-            'database': 'connected' if db_connected else 'disconnected',
-            'orchestrator': 'advanced',
-            'timestamp': datetime.now().isoformat()
-        })
-    except Exception as e:
-        return jsonify({
-            'status': 'unhealthy',
-            'error': str(e),
-            'timestamp': datetime.now().isoformat()
-        }), 500
+    db_ok = db.test_connection()
+    status = 'healthy' if (db_ok and orchestrator is not None) else 'degraded'
+    return jsonify({
+        'status': status,
+        'database': 'connected' if db_ok else 'disconnected',
+        'orchestrator': 'ready' if orchestrator is not None else 'not initialised',
+        'timestamp': datetime.now().isoformat(),
+    }), (200 if status == 'healthy' else 503)
+
 
 if __name__ == '__main__':
-    print("\n" + "=" * 60)
-    print("🚀 SYSTÈME MULTI-AGENTS E-COMMERCE")
-    print("=" * 60)
-    print("Server: http://localhost:5000")
-    print("Architecture:")
-    print("  🤖 Agents avec outils DB (LangChain)")
-    print("  🧠 Contexte: 10 derniers messages")
-    print("  🔧 12 fonctions database (tools)")
-    print("  💬 Questions intelligentes pour params")
-    print("=" * 60 + "\n")
-    app.run(debug=True, port=5000)
+    port = int(os.getenv('PORT', '5000'))
+    print(f"Multi-agent e-commerce assistant on http://localhost:{port}")
+    app.run(host='127.0.0.1', port=port, debug=os.getenv('FLASK_DEBUG') == '1')
