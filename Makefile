@@ -1,72 +1,42 @@
-.PHONY: help install setup db-start db-stop db-init fresh clean test serve
+.PHONY: help install db-up db-down db-reset db-init serve test test-offline clean
+
+COMPOSE ?= docker compose
+DB_CONTAINER ?= chatbot_mariadb
 
 help:
-	@echo ==========================================
-	@echo   Multi-Agent E-Commerce Chatbot
-	@echo ==========================================
-	@echo ""
-	@echo "Commandes disponibles:"
-	@echo "  make install - Installer dependances Python"
-	@echo "  make setup   - Installation complete"
-	@echo "  make fresh   - Reinstallation complete"
-	@echo "  make serve   - Demarrer serveur"
-	@echo "  make test    - Lancer tests"
-	@echo ""
+	@echo "make install       install the Python dependencies"
+	@echo "make db-up         start MariaDB + phpMyAdmin (the database is seeded on first start)"
+	@echo "make db-init       reload db/ecommerce.sql and db/seed_extra.sql into the running container"
+	@echo "make db-down       stop the containers (data is kept in the volume)"
+	@echo "make db-reset      stop the containers and delete the database volume"
+	@echo "make serve         start the Flask server on http://localhost:5000"
+	@echo "make test          run the 15 scenarios against a running server"
+	@echo "make test-offline  run the tool-loop tests (no key, no database needed)"
 
 install:
-	@echo "[INFO] Installation dependances..."
-	@pip install -r requirements.txt > nul 2>&1
-	@echo "[SUCCESS] Dependances installees"
+	pip install -r requirements.txt
 
-setup: install db-start db-init
-	@echo "[SUCCESS] Setup termine"
+db-up:
+	$(COMPOSE) up -d
 
-fresh: db-stop clean
-	@echo "[INFO] Suppression volumes Docker..."
-	@docker volume rm multi-agent-chatbot_chatbot_db_data 2> nul || true
-	@docker volume prune -f > nul 2>&1 || true
-	@echo "[INFO] Reinstallation..."
-	@pip install -r requirements.txt > nul 2>&1
-	@docker-compose up -d
-	@echo "[INFO] Attente MySQL 15s..."
-	@sleep 15 2> nul || ping 127.0.0.1 -n 16 > nul
-	@docker exec -i chatbot_mariadb mariadb -uroot -e "CREATE DATABASE IF NOT EXISTS ecommerce" 2> nul || true
-	@docker exec -i chatbot_mariadb mariadb -uroot ecommerce < ecommerce.sql
-	@echo "[SUCCESS] Installation terminee"
+db-down:
+	$(COMPOSE) down
 
-db-start:
-	@echo "[INFO] Demarrage Docker..."
-	@docker-compose up -d
-	@echo "[INFO] Attente 10s..."
-	@sleep 10 2> nul || ping 127.0.0.1 -n 11 > nul
-	@echo "[SUCCESS] Docker demarre"
-
-db-stop:
-	@echo "[INFO] Arret Docker..."
-	@docker-compose down > nul 2>&1 || true
-	@echo "[SUCCESS] Docker arrete"
+db-reset:
+	$(COMPOSE) down -v
 
 db-init:
-	@echo "[INFO] Init base..."
-	@sleep 5 2> nul || ping 127.0.0.1 -n 6 > nul
-	@docker exec -i chatbot_mariadb mariadb -uroot -e "CREATE DATABASE IF NOT EXISTS ecommerce" 2> nul || true
-	@docker exec -i chatbot_mariadb mariadb -uroot ecommerce < ecommerce.sql
-	@echo "[SUCCESS] Base initialisee"
+	docker exec -i $(DB_CONTAINER) mariadb -uroot ecommerce < db/ecommerce.sql
+	docker exec -i $(DB_CONTAINER) mariadb -uroot ecommerce < db/seed_extra.sql
 
 serve:
-	@echo "[INFO] Demarrage serveur..."
-	@python server.py
+	python server.py
 
 test:
-	@echo "[INFO] Tests..."
-	@python tests/test_all_scenarios.py
+	python tests/test_all_scenarios.py
+
+test-offline:
+	python tests/test_tool_loop.py
 
 clean:
-	@echo "[INFO] Nettoyage..."
-	@rm -rf __pycache__ 2> nul || true
-	@rm -rf agents/__pycache__ 2> nul || true
-	@rm -rf core/__pycache__ 2> nul || true
-	@rm -rf forms/__pycache__ 2> nul || true
-	@rm -rf tools/__pycache__ 2> nul || true
-	@rm -rf db_data 2> nul || true
-	@echo "[SUCCESS] Nettoye"
+	find . -name __pycache__ -type d -prune -exec rm -rf {} +
