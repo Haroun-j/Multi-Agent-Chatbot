@@ -1,4 +1,4 @@
-# Agent Test Scenarios
+# Manual test scenarios (planning notes)
 
 ## SALES AGENT Scenarios
 
@@ -213,10 +213,10 @@ Multiple browser tabs
 ## SUCCESS CRITERIA
 
 For each scenario:
-- ✅ Responds in French
-- ✅ Asks for missing params
-- ✅ Calls correct DB function
-- ✅ Handles errors gracefully
-- ✅ Maintains conversation context
-- ✅ Routes to correct agent
-- ✅ Provides helpful responses
+- Responds in French
+- Asks for missing params
+- Calls correct DB function
+- Handles errors gracefully
+- Maintains conversation context
+- Routes to correct agent
+- Provides helpful responses

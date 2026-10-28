@@ -1,107 +1,58 @@
-# Database Functions Catalog
+# Database functions
 
-## Product Functions (8 functions)
+All SQL lives in `core/database_mysql.py`. Each function returns plain dicts
+(or `None` / `[]`), so the agents' tools only format text. The 17 functions
+below are the ones designed for the agents; the sales and support tools are
+built on 13 of them. The module also has a few reporting helpers (best sellers,
+unpaid invoices, low stock, sales report, client statistics) that are not
+exposed as tools yet.
 
-### `get_products(category, min_price, max_price, brand, keyword)`
-Search products with filters.
-**Params**: All optional
-**Returns**: List of products
+## Products (8)
 
-### `get_product_details(product_id)`
-Full product information.
-**Params**: `product_id` (int)
-**Returns**: Product dict with specs, warranty, stock
+| Function | Parameters | Used by tool |
+|---|---|---|
+| `get_products(category, min_price, max_price, brand, keyword, limit=20)` | all optional; category matches the category or its parent | `search_products_tool` (sales) |
+| `get_product_details(product_id)` | int | `get_product_details_tool` (sales) |
+| `get_product_stock(product_id)` | int, returns quantity / reserved / disponible | `check_product_stock_tool` (sales) |
+| `get_product_reviews(product_id)` | int | `get_product_reviews_tool` (sales) |
+| `get_active_promotions()` | - | `get_active_promotions_tool` (sales) |
+| `get_product_warranty(product_id)` | int, warranty length + active warranties on sold units | `check_warranty_tool` (support) |
+| `get_products_by_category(category_name)` | exact category name | - |
+| `get_products_on_promotion()` | - | - |
 
-### `get_product_stock(product_id)`
-Stock availability.
-**Params**: `product_id` (int)
-**Returns**: {quantity, reserved, disponible}
+## Clients (4)
 
-### `get_products_by_category(category_name)`
-All products in category.
-**Params**: `category_name` (str)
+| Function | Parameters | Used by tool |
+|---|---|---|
+| `get_client_by_reference(client_reference)` | 13-digit string | `find_client_by_reference_tool` (support) |
+| `get_client_by_email(email)` | case-insensitive | `find_client_by_email_tool` (support) |
+| `get_client_orders(client_id, limit=10)` | internal id | `get_client_orders_tool` (support) |
+| `get_client_deliveries(client_id, limit=10)` | internal id | - |
 
-### `get_products_on_promotion()`
-Products with active promotions.
-**Params**: None
+## Orders (5)
 
-### `get_product_reviews(product_id)`
-Customer reviews.
-**Params**: `product_id` (int)
+| Function | Parameters | Used by tool |
+|---|---|---|
+| `get_order_by_number(order_number)` | `CMD-YYYY-NNNN`, returns the order with its items | `get_order_details_tool` (support) |
+| `get_order_items(order_id)` | internal id | via `get_order_by_number` |
+| `get_order_delivery_status(order_number)` | falls back to the order status if nothing shipped yet | `track_delivery_tool` (support) |
+| `get_invoice_by_order(order_number)` | | `get_invoice_tool` (support) |
+| `get_recent_orders(days=30, limit=20)` | all clients | - |
 
-### `get_product_warranty(product_id)`
-Warranty information.
-**Params**: `product_id` (int)
+## Test data worth knowing
 
-### `get_active_promotions()`
-All current promotions.
-**Params**: None
-
----
-
-## Client Functions (4 functions)
-
-### `get_client_by_reference(client_reference)`
-Find client by 13-digit reference.
-**Params**: `client_reference` (str, 13 digits)
-
-### `get_client_by_email(email)`
-Find client by email.
-**Params**: `email` (str)
-
-### `get_client_orders(client_id, limit=10)`
-Client's order history.
-**Params**: `client_id` (int), `limit` (int, optional)
-
-### `get_client_deliveries(client_id)`
-Client's delivery history.
-**Params**: `client_id` (int)
-
----
-
-## Order Functions (5 functions)
-
-### `get_order_by_number(order_number)`
-Complete order details.
-**Params**: `order_number` (str, "CMD-YYYY-NNNN")
-
-### `get_order_items(order_id)`
-Items in order.
-**Params**: `order_id` (int)
-
-### `get_order_delivery_status(order_number)`
-Tracking information.
-**Params**: `order_number` (str)
-
-### `get_invoice_by_order(order_number)`
-Invoice details.
-**Params**: `order_number` (str)
-
-### `get_recent_orders(days=30, limit=20)`
-Recent orders across all clients.
-**Params**: `days` (int), `limit` (int)
-
----
-
-## Usage Examples
+- Clients: references `1000000000123` (Alice Martin), `1000000000456` (Robert Dupont),
+  `1000000000789` (Claire Bernard), `1000000001012`, `1000000001345`, `1000000001678`.
+- Orders: `CMD-2026-0001` to `CMD-2026-0015`; deliveries exist for 10 of them after `db/seed_extra.sql`.
+- Catalogue: 38 products in 8 categories (Smartphones, Ordinateurs, Audio, Photo & Vidéo,
+  Gaming, Wearables, Smart Home, Accessoires).
+- Promotions have fixed dates in 2026; `get_active_promotions()` only returns the ones
+  whose window contains today.
 
 ```python
-# Search smartphones under 1000€
-products = get_products(category="Smartphones", max_price=1000)
+from core.database_mysql import get_products, get_client_by_reference, get_order_by_number
 
-# Get client by reference
-client = get_client_by_reference("1000000000123")
-
-# Get order details
-order = get_order_by_number("CMD-2026-0001")
-
-# Check stock
-stock = get_product_stock(15)  # product_id=15
+get_products(category="Smartphones", max_price=1000)
+get_client_by_reference("1000000000123")
+get_order_by_number("CMD-2026-0001")["items"]
 ```
-
----
-
-## Total: 17 Core Functions
-- Products: 8
-- Clients: 4  
-- Orders: 5
