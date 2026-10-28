@@ -1,0 +1,6 @@
+Flask
+flask-cors
+langchain
+langchain-groq
+python-dotenv
+mysql-connector-python

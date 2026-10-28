@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Agent E-Commerce</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --bg-color: #f3f4f6;
+            --chat-bg: #ffffff;
+            --user-msg-bg: #2563eb;
+            --bot-msg-bg: #f3f4f6;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Layout: Left Chat, Right Trace */
+        .container {
+            display: flex;
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .chat-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .trace-section {
+            width: 350px;
+            background: #1f2937;
+            color: #10b981;
+            /* Terminal green */
+            border-radius: 12px;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        header {
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.25rem;
+            color: #111827;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background-color: var(--user-msg-bg);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.assistant {
+            align-self: flex-start;
+            background-color: var(--bot-msg-bg);
+            color: #1f2937;
+            border-bottom-left-radius: 4px;
+        }
+
+        .input-area {
+            padding: 20px;
+            border-top: 1px solid #e5e7eb;
+            background: white;
+        }
+
+        form {
+            display: flex;
+            gap: 12px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            outline: none;
+            font-family: inherit;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+        }
+
+        button {
+            padding: 12px 24px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #1d4ed8;
+        }
+
+        button.secondary {
+            background-color: #6b7280;
+        }
+
+        /* Trace Logs */
+        .trace-log {
+            flex: 1;
+            overflow-y: auto;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+        }
+
+        .trace-entry {
+            margin-bottom: 8px;
+            border-bottom: 1px solid #374151;
+            padding-bottom: 4px;
+        }
+
+        /* Toggle Switch */
+        .mode-switch {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+
+        select {
+            padding: 6px;
+            border-radius: 4px;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Main Chat -->
+        <div class="chat-section">
+            <header>
+                <h1>Chatbot E-Commerce</h1>
+                <div class="controls">
+                    <div class="mode-switch">
+                        <label for="agentMode">Mode :</label>
+                        <select id="agentMode">
+                            <option value="multi">Système Multi-Agents</option>
+                            <option value="mono">Baseline (Mono-Agent)</option>
+                        </select>
+                    </div>
+                    <button id="clearButton" class="secondary">Effacer</button>
+                </div>
+            </header>
+
+            <div id="chatMessages" class="chat-messages">
+                <div class="message assistant">
+                    <div>Bonjour ! Je suis votre assistant virtuel. Comment puis-je vous aider aujourd'hui ?</div>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <form id="chatForm">
+                    <input type="text" id="messageInput" placeholder="Écrivez votre message..." autocomplete="off">
+                    <button type="submit" id="sendButton">Envoyer</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Trace Panel -->
+        <div class="trace-section">
+            <h3>Trace Agent</h3>
+            <div id="traceLog" class="trace-log">
+                <!-- Logs will appear here -->
+                <div class="trace-entry">Système prêt...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="static/js/script.js"></script>
+</body>
+
+</html>

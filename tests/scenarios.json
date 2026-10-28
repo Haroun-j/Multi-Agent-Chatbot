@@ -1,0 +1,283 @@
+{ "scenarios": [
+    {
+      "id": "S01",
+      "name": "Clear sales intent",
+      "conversation": [
+        {
+          "role": "user",
+          "message": "I want to buy a gaming laptop under 1500€"
+        }
+      ],
+      "expected": {
+        "initial_agent": "sales",
+        "agent_switches": [],
+        "db_access": true,
+        "notes": "Sales agent should ask clarifying questions before listing products."
+      }
+    },
+    {
+      "id": "S02",
+      "name": "Clear support intent",
+      "conversation": [
+        {
+          "role": "user",
+          "message": "My phone order arrived broken, what do I do?"
+        }
+      ],
+      "expected": {
+        "initial_agent": "support",
+        "agent_switches": [],
+        "db_access": true,
+        "notes": "Support agent should request order ID and explain return procedure."
+      }
+    },
+    {
+      "id": "S03",
+      "name": "Casual conversation",
+      "conversation": [
+        {
+          "role": "user",
+          "message": "Hey, how’s your day going?"
+        }
+      ],
+      "expected": {
+        "initial_agent": "chat",
+        "agent_switches": [],
+        "db_access": false,
+        "notes": "Chat agent only, no business logic or DB access."
+      }
+    },
+    {
+      "id": "S04",
+      "name": "Ambiguous buying intent",
+      "conversation": [
+        {
+          "role": "user",
+          "message": "I’m thinking about getting a tablet but not sure"
+        }
+      ],
+      "expected": {
+        "initial_agent": "sales",
+        "agent_switches": [],
+        "db_access": false,
+        "notes": "Sales agent should ask discovery questions before querying DB."
+      }
+    },
+    {
+      "id": "S05",
+      "name": "Product availability check",
+      "conversation": [
+        {
+          "role": "user",
+          "message": "Do you have the iPhone 15 Pro in stock?"
+        }
+      ],
+      "expected": {
+        "initial_agent": "sales",
+        "agent_switches": [],
+        "db_access": true,
+        "notes": "Sales agent should query inventory table."
+      }
+    },
+    {
+      "id": "S06",
+      "name": "Order tracking",
+      "conversation": [
+        {
+          "role": "user",
+          "message": "Where is my order #A1245?"
+        }
+      ],
+      "expected": {
+        "initial_agent": "support",
+        "agent_switches": [],
+        "db_access": true,
+        "notes": "Support agent queries orders and shipping status."
+      }
+    },
+    {
+      "id": "S07",
+      "name": "Return eligibility check",
+      "conversation": [
+        {
+          "role": "user",
+          "message": "Can I return my laptop I bought 40 days ago?"
+        }
+      ],
+      "expected": {
+        "initial_agent": "support",
+        "agent_switches": [],
+        "db_access": true,
+        "notes": "Support agent checks order date and return policy."
+      }
+    },
+    {
+      "id": "S08",
+      "name": "Sales to support handoff",
+      "conversation": [
+        {
+          "role": "user",
+          "message": "I want to buy a Samsung Galaxy S23"
+        },
+        {
+          "role": "user",
+          "message": "Actually I already bought one last week and it overheats"
+        }
+      ],
+      "expected": {
+        "initial_agent": "sales",
+        "agent_switches": [
+          {
+            "from": "sales",
+            "to": "support",
+            "trigger": "post-purchase problem"
+          }
+        ],
+        "db_access": true,
+        "notes": "Orchestrator must detect intent change and switch agents."
+      }
+    },
+    {
+      "id": "S09",
+      "name": "Chat to sales handoff",
+      "conversation": [
+        {
+          "role": "user",
+          "message": "I’m bored, what’s new in tech these days?"
+        },
+        {
+          "role": "user",
+          "message": "Which laptop would you recommend for programming?"
+        }
+      ],
+      "expected": {
+        "initial_agent": "chat",
+        "agent_switches": [
+          {
+            "from": "chat",
+            "to": "sales",
+            "trigger": "purchase advice request"
+          }
+        ],
+        "db_access": false,
+        "notes": "Sales agent should ask about budget and use case."
+      }
+    },
+    {
+      "id": "S10",
+      "name": "Support to sales upsell",
+      "conversation": [
+        {
+          "role": "user",
+          "message": "My old laptop battery is dead"
+        }
+      ],
+      "expected": {
+        "initial_agent": "support",
+        "agent_switches": [
+          {
+            "from": "support",
+            "to": "sales",
+            "trigger": "out-of-warranty replacement"
+          }
+        ],
+        "db_access": false,
+        "notes": "Support confirms issue then escalates to sales."
+      }
+    },
+    {
+      "id": "S11",
+      "name": "Mixed intent in single message",
+      "conversation": [
+        {
+          "role": "user",
+          "message": "I want to buy a tablet but I also have a problem with my last order"
+        }
+      ],
+      "expected": {
+        "initial_agent": "support",
+        "agent_switches": [
+          {
+            "from": "support",
+            "to": "sales",
+            "trigger": "issue resolved or deprioritized"
+          }
+        ],
+        "db_access": true,
+        "notes": "System should ask which issue to handle first."
+      }
+    },
+    {
+      "id": "S12",
+      "name": "Vague sales intent loop",
+      "conversation": [
+        {
+          "role": "user",
+          "message": "I want a laptop"
+        },
+        {
+          "role": "user",
+          "message": "I don’t know"
+        },
+        {
+          "role": "user",
+          "message": "Just something good"
+        }
+      ],
+      "expected": {
+        "initial_agent": "sales",
+        "agent_switches": [],
+        "db_access": false,
+        "notes": "Sales agent should narrow down options without looping endlessly."
+      }
+    },
+    {
+      "id": "S13",
+      "name": "Invalid order ID",
+      "conversation": [
+        {
+          "role": "user",
+          "message": "Where is my order #XYZ999999?"
+        }
+      ],
+      "expected": {
+        "initial_agent": "support",
+        "agent_switches": [],
+        "db_access": true,
+        "notes": "Graceful error handling, no hallucinated order."
+      }
+    },
+    {
+      "id": "S14",
+      "name": "Chat agent role violation test",
+      "conversation": [
+        {
+          "role": "user",
+          "message": "Which phone should I buy?"
+        }
+      ],
+      "expected": {
+        "initial_agent": "sales",
+        "agent_switches": [],
+        "db_access": false,
+        "notes": "Chat agent must not recommend products."
+      }
+    },
+    {
+      "id": "S15",
+      "name": "Complaint handling",
+      "conversation": [
+        {
+          "role": "user",
+          "message": "Your delivery service is terrible"
+        }
+      ],
+      "expected": {
+        "initial_agent": "support",
+        "agent_switches": [],
+        "db_access": false,
+        "notes": "Sales agent must not handle complaints."
+      }
+    }
+  ]
+}
